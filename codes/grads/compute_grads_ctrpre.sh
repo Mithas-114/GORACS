@@ -1,1 +1,0 @@
-python grad_for_ctrpre/compute_grads.py --dataset $1
