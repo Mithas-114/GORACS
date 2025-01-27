@@ -1,0 +1,1 @@
+python grad_for_seqrec/compute_grads.py --dataset $1
