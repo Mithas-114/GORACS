@@ -1,1 +1,0 @@
-python select_ctrpre.py --dataset $1 --lamda $2 --n $3 --max_iters $4 --cut_num $5
