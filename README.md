@@ -117,7 +117,7 @@ The codes for finetuning [BIGRec](https://github.com/SAI990323/BIGRec). In the f
 #### (5) Test
 
 * We also present the LoRA weights trained on Games dataset for test in **./models/LoRAs/demo-games-seqrec/**.
-* Please run ```evaluate_seqrec.sh``` in the folder **./codes/finetune/** to reproduce the scores in Table 2 :
+* Please run ```evaluate_seqrec.sh``` in the folder **./codes/finetune/** :
   
   ```shell
   sh evaluate_seqrec.sh
@@ -196,7 +196,7 @@ The codes for finetuning [TALLRec](https://github.com/SAI990323/TALLRec). In the
 #### (5) Test
 
 * We also present the LoRA weights trained on Games dataset for test in **./models/LoRAs/demo-games-ctrpre/**.
-* Please run ```evaluate_ctrpre.sh``` in the folder **./codes/finetune/** to reproduce the scores in Table 3 :
+* Please run ```evaluate_ctrpre.sh``` in the folder **./codes/finetune/** :
   
   ```shell
   sh evaluate_ctrpre.sh
