@@ -28,7 +28,7 @@ Subsequently, we offer a detailed explanation of our experimental procedure and 
 
 ### Dataset
 
-* The Games dataset and the Movies dataset are provided by [Amazon Review Data](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon_v2/), and the Food dataset is provided by [Amazon Review Data](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon/links.html).
+* The Games and the Movies dataset are provided by [Amazon Review Data](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon_v2/), and the Food dataset is provided by [Amazon Review Data](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon/links.html).
 * Download the 5-core data for Video Games (Video_Games_5.json.gz) and the metadata (meta_Video_Games.json.gz). 
 * Place the extracted **Video_Games_5.json** and **meta_Video_Games.json** files into **"./datasets/games/"** folder.
 
