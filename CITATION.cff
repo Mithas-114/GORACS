@@ -1,9 +1,0 @@
-cff-version: 1.0
-message: "If you use this code, please cite it as below."
-authors:
-- family-names: Mei
-  given-names: Tiehua
-orcid: https://orcid.org/0009-0005-9677-4653
-title:Mithas-114/GORACS: GORACS
-version: v1.0
-date-released: 2025-05-28
