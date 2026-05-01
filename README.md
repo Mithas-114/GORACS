@@ -2,6 +2,12 @@
 
 ---
 
+## Update (v2)
+
+Added batched computation support for the ITRA algorithm to reduce GPU memory consumption and enable scaling to larger datasets. Thanks to @chenxing1999 for the contribution! See PR #4 for details.
+
+---
+
 This is the pytorch implementation of our proposed GORACS framework.
 
 
