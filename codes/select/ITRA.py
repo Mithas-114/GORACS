@@ -1,5 +1,5 @@
 """
-Implementation for the ITRA algorithm. 
+Implementation for the ITRA algorithm.
 """
 
 import os
@@ -9,7 +9,7 @@ import numpy as np
 import math
 import ot
 import time
-import itertools  
+import itertools
 import matplotlib.pyplot as plt
 import json
 
@@ -73,8 +73,8 @@ class ITRA():
         pbar.update(1)
         cost_min = cost_gpu[idx]  # The column-wise minimum of the cost matrix, constrained to the rows in S
         cost_sum = cost_gpu.sum(dim=1)
-        w = torch.zeros(T_len) 
-        min_indices = cost_gpu.argmin(dim=0).detach().cpu() 
+        w = torch.zeros(T_len)
+        min_indices = cost_gpu.argmin(dim=0).detach().cpu()
         unique_indices, counts = torch.unique(min_indices, return_counts=True)
         w[unique_indices] = counts.float()/V_len
         if (w>0).sum() <= n:
@@ -85,7 +85,7 @@ class ITRA():
                 while True:
                     if len(S) >= n:
                         w = torch.zeros(T_len)
-                        min_indices = cost_gpu[S, :].argmin(axis=0).detach().cpu()  
+                        min_indices = cost_gpu[S, :].argmin(axis=0).detach().cpu()
                         unique_indices, counts = torch.unique(min_indices, return_counts=True)  
                         w[torch.tensor(S)[unique_indices]] = counts.float() / V_len
                         if (w>0).sum() >= n or not flag:
@@ -98,8 +98,20 @@ class ITRA():
                     # we ultilize an equivalent form of Gain in Eq. 14, which can further reduce repeated computation
                     # one can get this form by writing (x, 0)^- as (x-|x|)/2
                     diff_set =  torch.from_numpy(np.setdiff1d(np.arange(T_len), np.array(S)))
-                    gain = (cost_sum - (cost_min-cost_gpu).abs().sum(dim=1)).cpu()[diff_set]
-                    e = diff_set[gain.argmin()].item()
+                    batch_size = 10240
+
+                    gains = []
+                    for i in range(0, len(cost_gpu), batch_size):
+                        gain = (cost_sum[i:i+batch_size] - (cost_min - cost_gpu[i:i+batch_size]).abs().sum(dim=1)).cpu()
+                        gains.append(gain)
+
+                    gain = torch.concat(gains)
+                    assert gain.shape[0] == cost_gpu.shape[0]
+                    e = gain[diff_set].argmin()
+                    e = diff_set[e].item()
+
+                    # gain = (cost_sum - (cost_min-cost_gpu).abs().sum(dim=1)).cpu()[diff_set]
+                    # e = diff_set[gain.argmin()].item()
 
                     # Update S and the column-wise minimum of the cost matrix constrained to the rows in S
                     S.append(e)
@@ -118,7 +130,8 @@ class ITRA():
         """
         cost_matrix.sub_(x_star.unsqueeze(1))   # to save cuda memory
         cost_min_S = cost_matrix[S, :].min(dim=0, keepdim=True)[0]
-        mask = torch.ones_like(cost_matrix).bool()   
+        # mask = torch.ones((len(S), cost_matrix.shape[1]), dtype=torch.bool, device=cost_matrix.device)
+        mask = torch.ones(cost_matrix.shape, dtype=torch.bool, device=cost_matrix.device)
         row_in_S_equal_S_min = (cost_matrix[S, :] == cost_min_S)
         num_row_in_S_equal_S_min = row_in_S_equal_S_min.sum(dim=0)
         cost_second_min_S = torch.where(         # compute the column-wise second minimum of the cost matrix constrained to the rows in S 
@@ -135,7 +148,9 @@ class ITRA():
         compute F in Eq.16
         """
         cost_matrix.sub_(y_hat.unsqueeze(1))
-        F_scores = torch.minimum(cost_matrix-f_matrix, torch.tensor(0)).mean(dim=1) + y_hat/S_len
+
+        # f = minimum((cost - y -f_matrix), 0).mean(dim=1)
+        # F_scores = torch.minimum(cost_matrix-f_matrix, torch.tensor(0)).mean(dim=1) + y_hat/S_len
         cost_matrix.add_(y_hat.unsqueeze(1))
         return F_scores
         
@@ -156,9 +171,12 @@ class ITRA():
         # compute f matrix in parallel
         f_matrix = self.compute_f_matrix(cost_matrix, x_star, S)   
         # compute y_hat, and we only need to find the top-R values for each row
-        y_hat = (cost_matrix - f_matrix).topk(k=R, dim=1, largest=True)[0][:, -1]
+        # y_hat shape: N_train
+        # y_hat = (cost_matrix - f_matrix).topk(k=R, dim=1, largest=True)[0][:, -1]
+        y_hat, f_scores = self._get_y_hat(cost_matrix, f_matrix, R)
+        estimate_MI_scores = f_scores + y_hat / S_len
         # estimate MI by Eq.16
-        estimate_MI_scores = self.compute_F(cost_matrix, f_matrix, y_hat, S_len)
+        # estimate_MI_scores = self.compute_F(cost_matrix, f_matrix, y_hat, S_len)
         
         # outer pruning
         diff = np.setdiff1d(np.arange(T_len), np.array(S))
@@ -171,6 +189,29 @@ class ITRA():
         inner_idx = S[inner_scores.argsort()[-cut_num:]]
 
         return list(inner_idx), list(outer_idx)
+
+    def _get_y_hat(self, cost_matrix, f_matrix, R, batch_size=10240):
+        """ """
+        #  y_hat_res = torch.tensor(
+            #  [[float("-inf")] * cost_matrix.shape[1]],
+            #  device=cost_matrix.device,
+        #  )
+        y_hat_res = torch.tensor([], device=cost_matrix.device, dtype=cost_matrix.dtype)
+        f_res = torch.tensor([], device=cost_matrix.device)
+
+        num_train = len(cost_matrix)
+        for i in range(0, num_train, batch_size):
+            diff = cost_matrix[i:i+batch_size] - f_matrix[i:i+batch_size]
+            y_hat = diff.topk(k=R, dim=1, largest=True)[0][:, -1]
+            y_hat_res = torch.concat([y_hat_res, y_hat], dim=0)
+            # shape: batch_size, n_val
+            diff = torch.minimum(diff - y_hat.unsqueeze(1), torch.tensor(0))
+            f_res = torch.concat([f_res, diff.mean(dim=1)])
+
+        assert y_hat_res.shape[0] == cost_matrix.shape[0], f"{y_hat_res.shape} != {cost_matrix.shape[0]}"
+        return y_hat_res, f_res
+
+
     
     
     def refine(self, cost_matrix, S, max_iters=100, cut_num=30, plot_descent_curve=False, print_pass_1=False):
@@ -184,6 +225,7 @@ class ITRA():
         
         s, x_star = self.compute_ot(cost_matrix, S)
         s_list.append(s)
+        cost_matrix_tensor = torch.from_numpy(cost_matrix).cuda()
         while True:
             
             if iters >= max_iters:
@@ -194,7 +236,7 @@ class ITRA():
             pass_1_flag = True
             early_stop = True
             
-            inner_idx, outer_idx = self.pruning(torch.from_numpy(cost_matrix).cuda(), S, torch.from_numpy(x_star).cuda(), cut_num=cut_num)
+            inner_idx, outer_idx = self.pruning(cost_matrix_tensor, S, torch.from_numpy(x_star).cuda(), cut_num=cut_num)
             
             for (i, o) in list(itertools.product(inner_idx, outer_idx)):
                     S_ = S.copy()
