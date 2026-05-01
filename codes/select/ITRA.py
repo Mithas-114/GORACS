@@ -110,9 +110,6 @@ class ITRA():
                     e = gain[diff_set].argmin()
                     e = diff_set[e].item()
 
-                    # gain = (cost_sum - (cost_min-cost_gpu).abs().sum(dim=1)).cpu()[diff_set]
-                    # e = diff_set[gain.argmin()].item()
-
                     # Update S and the column-wise minimum of the cost matrix constrained to the rows in S
                     S.append(e)
                     cost_min = cost_gpu[S].min(dim=0)[0]
@@ -143,18 +140,6 @@ class ITRA():
         cost_matrix.add_(x_star.unsqueeze(1))
         return torch.where(mask, cost_min_S,  cost_second_min_S)
     
-    def compute_F(self, cost_matrix, f_matrix, y_hat, S_len):
-        """
-        compute F in Eq.16
-        """
-        cost_matrix.sub_(y_hat.unsqueeze(1))
-
-        # f = minimum((cost - y -f_matrix), 0).mean(dim=1)
-        # F_scores = torch.minimum(cost_matrix-f_matrix, torch.tensor(0)).mean(dim=1) + y_hat/S_len
-        cost_matrix.add_(y_hat.unsqueeze(1))
-        return F_scores
-        
-        
                 
     def pruning(self, cost_matrix, S, x_star, cut_num=30):
         """
@@ -175,8 +160,6 @@ class ITRA():
         # y_hat = (cost_matrix - f_matrix).topk(k=R, dim=1, largest=True)[0][:, -1]
         y_hat, f_scores = self._get_y_hat(cost_matrix, f_matrix, R)
         estimate_MI_scores = f_scores + y_hat / S_len
-        # estimate MI by Eq.16
-        # estimate_MI_scores = self.compute_F(cost_matrix, f_matrix, y_hat, S_len)
         
         # outer pruning
         diff = np.setdiff1d(np.arange(T_len), np.array(S))
@@ -191,11 +174,7 @@ class ITRA():
         return list(inner_idx), list(outer_idx)
 
     def _get_y_hat(self, cost_matrix, f_matrix, R, batch_size=10240):
-        """ """
-        #  y_hat_res = torch.tensor(
-            #  [[float("-inf")] * cost_matrix.shape[1]],
-            #  device=cost_matrix.device,
-        #  )
+        """ Compute y_hat and f matrix """
         y_hat_res = torch.tensor([], device=cost_matrix.device, dtype=cost_matrix.dtype)
         f_res = torch.tensor([], device=cost_matrix.device)
 
